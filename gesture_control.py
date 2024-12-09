@@ -85,3 +85,88 @@ back_button = {
     "text": "Back",
     "base_color": (0, 128, 255)  
 }
+
+def draw_circle_button(overlay, button, cursor_x, cursor_y, pinch_detected):
+    cx, cy, r = button["cx"], button["cy"], button["r"]
+    text = button["text"]
+    base_color = button["base_color"]
+
+    dist = math.hypot(cursor_x - cx, cursor_y - cy)
+    hovered = dist < r
+    clicked = hovered and pinch_detected
+
+    if clicked:
+        color = (min(base_color[0]+80, 255), min(base_color[1]+80, 255), min(base_color[2]+80, 255))
+        cv2.circle(overlay, (cx, cy), r+15, (0, 255, 255), 4)  
+    elif hovered:
+        color = (min(base_color[0]+50, 255), min(base_color[1]+50, 255), min(base_color[2]+50, 255))
+        cv2.circle(overlay, (cx, cy), r+10, (255, 255, 255), 2)  
+    else:
+        color = base_color
+
+    cv2.circle(overlay, (cx, cy), r, color, -1)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.8
+    text_size = cv2.getTextSize(text, font, font_scale, 2)[0]
+    text_x = cx - text_size[0] // 2
+    text_y = cy + text_size[1] // 2
+    cv2.putText(overlay, text, (text_x, text_y), font, font_scale, (255, 255, 255), 2, cv2.LINE_AA)
+
+    return clicked, text
+
+def draw_scrollbars(frame, horiz_pos, vert_pos, horizontal_selected, vertical_selected, scroll_gesture_active):
+    cv2.rectangle(
+        frame,
+        (horiz_pos, frame_height - scrollbar_thickness),
+        (horiz_pos + scrollbar_length, frame_height),
+        (0, 255, 0),
+        -1,
+    )
+
+    cv2.rectangle(
+        frame,
+        (frame_width - scrollbar_thickness, vert_pos),
+        (frame_width, vert_pos + scrollbar_length),
+        (255, 0, 0),
+        -1,
+    )
+
+    if horizontal_selected:
+        thickness = 2 if not scroll_gesture_active else 4
+        color = (255, 255, 255) if not scroll_gesture_active else (0, 255, 255)
+        cv2.rectangle(
+            frame,
+            (horiz_pos, frame_height - scrollbar_thickness),
+            (horiz_pos + scrollbar_length, frame_height),
+            color,
+            thickness
+        )
+
+    if vertical_selected:
+        thickness = 2 if not scroll_gesture_active else 4
+        color = (255, 255, 255) if not scroll_gesture_active else (0, 255, 255)
+        cv2.rectangle(
+            frame,
+            (frame_width - scrollbar_thickness, vert_pos),
+            (frame_width, vert_pos + scrollbar_length),
+            color,
+            thickness
+        )
+
+def update_scroll_positions(cursor_x, cursor_y, prev_cursor_x, prev_cursor_y, horizontal_selected, vertical_selected):
+    global horizontal_scroll_pos, vertical_scroll_pos
+
+    if horizontal_selected:
+        delta_x = cursor_x - prev_cursor_x
+        horizontal_scroll_pos = max(0, min(horizontal_scroll_pos + delta_x, horizontal_max_scroll))
+
+    if vertical_selected:
+        delta_y = cursor_y - prev_cursor_y
+        vertical_scroll_pos = max(0, min(vertical_scroll_pos + delta_y, vertical_max_scroll))
+
+def is_scroll_gesture(hand_landmark):
+    index_tip = hand_landmark.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
+    middle_tip = hand_landmark.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
+    dist = math.hypot(index_tip.x - middle_tip.x, index_tip.y - middle_tip.y)
+    return dist < 0.05
