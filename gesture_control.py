@@ -170,3 +170,90 @@ def is_scroll_gesture(hand_landmark):
     middle_tip = hand_landmark.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
     dist = math.hypot(index_tip.x - middle_tip.x, index_tip.y - middle_tip.y)
     return dist < 0.05
+
+prev_cursor_x, prev_cursor_y = -1, -1
+scroll_gesture_active = False
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    frame = cv2.flip(frame, 1)
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    result = hands.process(rgb_frame)
+
+    cursor_x, cursor_y = -1, -1
+    pinch_detected = False
+    scroll_gesture_active = False
+
+    if result.multi_hand_landmarks:
+        for hand_landmark in result.multi_hand_landmarks:
+            mp_draw.draw_landmarks(
+                frame,
+                hand_landmark,
+                mp_hands.HAND_CONNECTIONS,
+                mp_draw.DrawingSpec(color=(0, 0, 255), thickness=2, circle_radius=4),
+                mp_draw.DrawingSpec(color=(255, 255, 255), thickness=2, circle_radius=2),
+            )
+
+            index_tip = hand_landmark.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
+            thumb_tip = hand_landmark.landmark[mp_hands.HandLandmark.THUMB_TIP]
+
+            cursor_x = int(index_tip.x * frame.shape[1])
+            cursor_y = int(index_tip.y * frame.shape[0])
+
+            distance = math.hypot(index_tip.x - thumb_tip.x, index_tip.y - thumb_tip.y)
+            if distance < 0.05:
+                pinch_detected = True
+
+            if is_scroll_gesture(hand_landmark):
+                scroll_gesture_active = True
+
+    overlay = frame.copy()
+
+    horizontal_selected = False
+    vertical_selected = False
+
+    if ui_stage == 1:
+        bar_overlay = overlay.copy()
+        cv2.rectangle(bar_overlay, (0, bar_y), (frame_width, bar_y + bar_height), bar_color, -1)
+        cv2.addWeighted(bar_overlay, alpha_bar, overlay, 1 - alpha_bar, 0, overlay)
+
+        clicked_button = None
+        for btn in buttons:
+            clicked, text = draw_circle_button(overlay, btn, cursor_x, cursor_y, pinch_detected)
+            if clicked:
+                clicked_button = text
+
+        if clicked_button:
+            clicked_button_text = clicked_button
+            if clicked_button == "Next":
+                ui_stage = 2
+                vertical_scroll_pos = 0
+                horizontal_scroll_pos = 0
+
+        if cursor_x != -1 and cursor_y != -1:
+            if (frame_height - scrollbar_thickness <= cursor_y <= frame_height) and \
+               (horizontal_scroll_pos <= cursor_x <= horizontal_scroll_pos + scrollbar_length):
+                horizontal_selected = True
+
+            if (frame_width - scrollbar_thickness <= cursor_x <= frame_width) and \
+               (vertical_scroll_pos <= cursor_y <= vertical_scroll_pos + scrollbar_length):
+                vertical_selected = True
+
+            if scroll_gesture_active and (horizontal_selected or vertical_selected):
+                if prev_cursor_x != -1 and prev_cursor_y != -1:
+                    update_scroll_positions(cursor_x, cursor_y, prev_cursor_x, prev_cursor_y, horizontal_selected, vertical_selected)
+
+            cv2.circle(overlay, (cursor_x, cursor_y), 10, (255, 255, 0), -1)
+
+        draw_scrollbars(overlay, horizontal_scroll_pos, vertical_scroll_pos, horizontal_selected, vertical_selected, scroll_gesture_active)
+
+        if clicked_button_text:
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            msg = f"{clicked_button_text} Clicked!"
+            text_size = cv2.getTextSize(msg, font, 1, 2)[0]
+            msg_x = (frame_width - text_size[0]) // 2
+            msg_y = 100
+            cv2.putText(overlay, msg, (msg_x, msg_y), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
