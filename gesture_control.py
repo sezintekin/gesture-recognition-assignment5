@@ -257,3 +257,64 @@ while True:
             msg_x = (frame_width - text_size[0]) // 2
             msg_y = 100
             cv2.putText(overlay, msg, (msg_x, msg_y), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+
+    else:
+        clicked_back, _ = draw_circle_button(overlay, back_button, cursor_x, cursor_y, pinch_detected)
+        if clicked_back:
+            ui_stage = 1
+            vertical_scroll_pos = 0
+            horizontal_scroll_pos = 0
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        title = "Suggested songs:"
+        title_size = cv2.getTextSize(title, font, 1.2, 2)[0]
+        title_x = (frame_width - title_size[0]) // 2
+        title_y = 100
+        cv2.putText(overlay, title, (title_x, title_y), font, 1.2, (255, 255, 0), 2, cv2.LINE_AA)
+
+        y_start = 200 - vertical_scroll_pos
+        for i, song in enumerate(song_titles):
+            song_y = y_start + i * line_height
+            if song_y > frame_height or (song_y + line_height < 0):
+                continue
+            cv2.putText(overlay, song, (100, song_y), font, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+
+        text_start_y = y_start + len(song_titles)*line_height + 100
+        for j, line in enumerate(wrapped_text):
+            line_y = text_start_y + j*40
+            if line_y > frame_height or (line_y + 40 < 0):
+                continue
+            cv2.putText(overlay, line, (100, line_y), font, 1.0, (200, 200, 200), 2, cv2.LINE_AA)
+
+        if cursor_x != -1 and cursor_y != -1:
+            if (frame_height - scrollbar_thickness <= cursor_y <= frame_height) and \
+               (horizontal_scroll_pos <= cursor_x <= horizontal_scroll_pos + scrollbar_length):
+                horizontal_selected = True
+
+            if (frame_width - scrollbar_thickness <= cursor_x <= frame_width) and \
+               (vertical_scroll_pos <= cursor_y <= vertical_scroll_pos + scrollbar_length):
+                vertical_selected = True
+
+            if scroll_gesture_active and (horizontal_selected or vertical_selected):
+                if prev_cursor_x != -1 and prev_cursor_y != -1:
+                    update_scroll_positions(cursor_x, cursor_y, prev_cursor_x, prev_cursor_y, horizontal_selected, vertical_selected)
+
+            cv2.circle(overlay, (cursor_x, cursor_y), 10, (255, 255, 0), -1)
+
+        draw_scrollbars(overlay, horizontal_scroll_pos, vertical_scroll_pos, horizontal_selected, vertical_selected, scroll_gesture_active)
+
+    prev_cursor_x, prev_cursor_y = cursor_x, cursor_y
+
+    cv2.imshow("Gesture Control", overlay)
+    key = cv2.waitKey(1)
+    if key == ord("q"):
+        break
+    elif key == ord("f"):
+        fullscreen = not fullscreen
+        if fullscreen:
+            cv2.setWindowProperty("Gesture Control", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        else:
+            cv2.setWindowProperty("Gesture Control", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
+
+cap.release()
+cv2.destroyAllWindows()
